@@ -18,5 +18,7 @@ cmake_c_add_flags(CMAKE_CXX_FLAGS -Wall -Wextra
 cmake_c_add_flags(CMAKE_SHARED_LINKER_FLAGS -Wl,--as-needed -Wl,--no-undefined)
 cmake_c_add_flags(CMAKE_MODULE_LINKER_FLAGS -Wl,--as-needed -Wl,--no-undefined)
 
+enable_testing()
+
 add_subdirectory(lib)
 add_subdirectory(test)

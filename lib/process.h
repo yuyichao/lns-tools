@@ -22,19 +22,21 @@
 #define __LNS_PROCESS_H__
 
 #include "utils.h"
+
 #include <functional>
 #include <vector>
+#include <string>
 
 namespace LNSTools {
 
 struct MapRange {
-    unsigned parent;
     unsigned child;
+    unsigned parent;
     unsigned length;
-    MapRange(unsigned _parent=0,
-             unsigned _child=0,
+    MapRange(unsigned _child=0,
+             unsigned _parent=0,
              unsigned _length=1)
-        : parent(_parent), child(_child), length(_length)
+        : child(_child), parent(_parent), length(_length)
     {}
 };
 
@@ -60,18 +62,20 @@ public:
 
     int run();
     int pid() const noexcept;
+    int wait(int *status=nullptr, int options=0);
 
     int signal() const noexcept;
     void set_signal(int) noexcept;
 
     bool userns() const noexcept;
     void set_userns(bool) noexcept;
-
-    int wait(int *status=nullptr, int options=0);
-
     UserMap &uid_map() noexcept;
     UserMap &gid_map() noexcept;
     template<typename... T> inline void add_uid_map(T&&... v);
+    template<typename... T> inline void add_gid_map(T&&... v);
+
+    bool mountns() const noexcept;
+    void set_mountns(bool) noexcept;
 private:
     void post_clone_parent(int fds[2]) noexcept;
     void post_clone_child(int fds[2]) noexcept;
@@ -89,6 +93,20 @@ inline void
 Process::add_uid_map<const MapRange&>(const MapRange &v)
 {
     uid_map().push_back(v);
+}
+
+template<typename... T>
+inline void
+Process::add_gid_map(T&&... v)
+{
+    gid_map().push_back(MapRange(std::forward<T>(v)...));
+}
+
+template<>
+inline void
+Process::add_gid_map<const MapRange&>(const MapRange &v)
+{
+    gid_map().push_back(v);
 }
 
 inline

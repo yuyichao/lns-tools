@@ -21,19 +21,24 @@
 #include <lns_tools/process.h>
 #include <assert.h>
 #include <sched.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 int
 main()
 {
-    int a = 0;
-    LNSTools::Process p([&] () {
-            a = 2;
+    LNSTools::Process p([] () {
+            assert(getuid() == 0);
+            assert(getgid() == 0);
             return 0;
         });
-    p.set_extra_flags(CLONE_VM);
+    p.set_userns(true);
+    p.add_uid_map(0, getuid());
+    p.add_gid_map(0, getgid());
     int pid = p.run();
     assert(pid > 0);
-    p.wait();
-    assert(a == 2);
+    int status = 0;
+    p.wait(&status);
+    assert(status == 0);
     return 0;
 }
