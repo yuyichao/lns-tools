@@ -23,6 +23,8 @@
 #include <sys/socket.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
+
 #include <signal.h>
 #include <sched.h>
 #include <unistd.h>
@@ -40,7 +42,7 @@ class ProcessPrivate {
     UserMap gid_map;
     inline
     ProcessPrivate(std::function<int()> &&f) noexcept
-        : flags(SIGCHLD), extra_flags(0), pid(0), func(f), uid_map(), gid_map()
+        : flags(SIGCHLD), extra_flags(0), pid(-1), func(f), uid_map(), gid_map()
     {
     }
     friend class Process;
@@ -216,6 +218,17 @@ UserMap&
 Process::gid_map() noexcept
 {
     return d()->gid_map;
+}
+
+int
+Process::wait(int *status, int options)
+{
+    int pid = d()->pid;
+    if (lns_unlikely(pid == -1)) {
+        errno = EINVAL;
+        return -1;
+    }
+    return waitpid(d()->pid, status, options);
 }
 
 }

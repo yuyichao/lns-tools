@@ -31,12 +31,14 @@ struct MapRange {
     unsigned parent;
     unsigned child;
     unsigned length;
+    MapRange(unsigned _parent=0,
+             unsigned _child=0,
+             unsigned _length=1)
+        : parent(_parent), child(_child), length(_length)
+    {}
 };
 
-class LNS_EXPORT UserMap: public std::vector<MapRange> {
-public:
-    using std::vector<MapRange>::vector;
-};
+typedef std::vector<MapRange> UserMap;
 
 class ProcessPrivate;
 
@@ -65,12 +67,29 @@ public:
     bool userns() const noexcept;
     void set_userns(bool) noexcept;
 
+    int wait(int *status=nullptr, int options=0);
+
     UserMap &uid_map() noexcept;
     UserMap &gid_map() noexcept;
+    template<typename... T> inline void add_uid_map(T&&... v);
 private:
     void post_clone_parent(int fds[2]) noexcept;
     void post_clone_child(int fds[2]) noexcept;
 };
+
+template<typename... T>
+inline void
+Process::add_uid_map(T&&... v)
+{
+    uid_map().push_back(MapRange(std::forward<T>(v)...));
+}
+
+template<>
+inline void
+Process::add_uid_map<const MapRange&>(const MapRange &v)
+{
+    uid_map().push_back(v);
+}
 
 inline
 Process::Process(Process &&other) noexcept
