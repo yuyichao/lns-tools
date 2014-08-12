@@ -19,17 +19,38 @@
  ***************************************************************************/
 
 #include <lns_tools/process.h>
+#include <sys/stat.h>
 #include <assert.h>
+#include <sched.h>
+#include <unistd.h>
 
 int
 main()
 {
     LNSTools::Process p([] () {
+            assert(getuid() == 0);
+            assert(getgid() == 0);
             return 0;
         });
-    p.set_signal(0);
-    assert(p.signal() == 0);
+    p.set_userns(true);
+    p.add_uid_map(0, getuid());
+    p.add_gid_map(0, getgid());
+
+    p.chroot(".");
+    struct stat stat_buf;
+    if (lstat("usr", &stat_buf) == 0) {
+        if (!S_ISDIR(stat_buf.st_mode)) {
+            fprintf(stderr, "path 'usr' already exist and is not a directory.");
+            return -1;
+        }
+    } else if (mkdir("usr", 0750) == -1) {
+        assert_perror(errno);
+    }
+    p.add_mount_map("usr");
     int pid = p.run();
     assert_perror(pid > 0 ? errno : 0);
+    int status = 0;
+    p.wait(&status);
+    assert_perror(status);
     return 0;
 }

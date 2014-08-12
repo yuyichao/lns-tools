@@ -29,6 +29,28 @@
 
 namespace LNSTools {
 
+struct BindMount {
+    std::string parent;
+    std::string child;
+    template<typename Tp> inline BindMount(Tp &&_parent);
+    template<typename Tp, typename Tc>
+    inline BindMount(Tp &&_parent, Tc &&_child);
+};
+
+template<typename Tp> inline
+BindMount::BindMount(Tp &&_parent)
+    : parent(std::forward<Tp>(_parent)), child()
+{
+}
+
+template<typename Tp, typename Tc> inline
+BindMount::BindMount(Tp &&_parent, Tc &&_child)
+    : parent(std::forward<Tp>(_parent)), child(std::forward<Tc>(_child))
+{
+}
+
+typedef std::vector<BindMount> MountMap;
+
 struct MapRange {
     unsigned child;
     unsigned parent;
@@ -74,12 +96,32 @@ public:
     template<typename... T> inline void add_uid_map(T&&... v);
     template<typename... T> inline void add_gid_map(T&&... v);
 
-    bool mountns() const noexcept;
-    void set_mountns(bool) noexcept;
-private:
-    void post_clone_parent(int fds[2]) noexcept;
-    void post_clone_child(int fds[2]) noexcept;
+    const std::string& new_root() const;
+    inline void chroot(std::string&);
+    void chroot(std::string&&);
+    MountMap &mount_map() noexcept;
+    template<typename... T> inline void add_mount_map(T&&... v);
 };
+
+inline void
+Process::chroot(std::string &root)
+{
+    chroot(std::move(std::string(root)));
+}
+
+template<typename... T>
+inline void
+Process::add_mount_map(T&&... v)
+{
+    mount_map().push_back(BindMount(std::forward<T>(v)...));
+}
+
+template<>
+inline void
+Process::add_mount_map<const BindMount&>(const BindMount &v)
+{
+    mount_map().push_back(v);
+}
 
 template<typename... T>
 inline void

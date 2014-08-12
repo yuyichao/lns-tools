@@ -32,7 +32,7 @@ main()
         });
     p.set_extra_flags(CLONE_VM);
     int pid = p.run();
-    assert(pid > 0);
+    assert_perror(pid > 0 ? errno : 0);
     p.wait();
     assert(a == 2);
     return 0;

@@ -24,6 +24,7 @@
 #include <sys/resource.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
+#include <sys/mount.h>
 
 #include <signal.h>
 #include <sched.h>
@@ -34,17 +35,22 @@
 namespace LNSTools {
 
 class ProcessPrivate {
-    int flags;
-    int extra_flags;
-    int pid;
-    std::function<int()> func;
-    UserMap uid_map;
-    UserMap gid_map;
+    int m_flags;
+    int m_extra_flags;
+    int m_pid;
+    std::function<int()> m_func;
+    UserMap m_uids;
+    UserMap m_gids;
+    std::string m_chroot;
+    MountMap m_mounts;
     inline
-    ProcessPrivate(std::function<int()> &&f) noexcept
-        : flags(SIGCHLD), extra_flags(0), pid(-1), func(f), uid_map(), gid_map()
+    ProcessPrivate(std::function<int()> &&f) noexcept :
+        m_flags(SIGCHLD), m_extra_flags(0), m_pid(-1), m_func(f),
+        m_uids(), m_gids(), m_chroot(), m_mounts()
     {
     }
+    int post_clone_child() noexcept;
+    int post_clone_parent() noexcept;
     friend class Process;
 };
 
@@ -56,25 +62,25 @@ Process::Process(std::function<int()> &&f) noexcept
 int
 Process::extra_flags() const noexcept
 {
-    return m_d->extra_flags;
+    return m_d->m_extra_flags;
 }
 
 void
 Process::set_extra_flags(int flags) noexcept
 {
-    d()->extra_flags = flags;
+    d()->m_extra_flags = flags;
 }
 
 int
 Process::pid() const noexcept
 {
-    return d()->pid;
+    return d()->m_pid;
 }
 
 int
 Process::flags() const noexcept
 {
-    return d()->extra_flags | d()->flags;
+    return d()->m_extra_flags | d()->m_flags;
 }
 
 int
@@ -114,91 +120,129 @@ Process::run()
     }
 
     int _flags = flags();
-    d()->pid = clone([] (void *p) -> int {
+    auto &fds = data.fds;
+    d()->m_pid = clone([] (void *p) -> int {
             auto &data = *reinterpret_cast<CloneData*>(p);
-            auto &func = data.that->d()->func;
-            data.that->post_clone_child(data.fds);
+            auto &func = data.that->d()->m_func;
+            auto &fds = data.fds;
+            int err = data.that->d()->post_clone_child();
+            // send error to parent
+            write(fds[1], &err, sizeof(int));
+            if (err == 0) {
+                // read error from parent
+                err = 1;
+                read(fds[1], &err, sizeof(int));
+            }
+            close(fds[1]);
+            close(fds[0]);
+            if (err) {
+                return -1;
+            }
             return func();
         }, (char*)stack + rlp.rlim_cur, _flags, &data);
 
-    if (d()->pid == -1) {
+    if (d()->m_pid == -1) {
         int err = errno;
-        close(data.fds[0]);
-        close(data.fds[1]);
+        close(fds[0]);
+        close(fds[1]);
         munmap(stack, rlp.rlim_cur);
         return -err;
     }
     if (!(_flags & CLONE_VM)) {
         munmap(stack, rlp.rlim_cur);
     }
-    post_clone_parent(data.fds);
+    int err = d()->post_clone_parent();
+    int child_err = 1;
+    read(fds[0], &child_err, sizeof(int));
+    write(fds[0], &err, sizeof(int));
     if (!(_flags & CLONE_FILES)) {
         close(data.fds[0]);
         close(data.fds[1]);
     }
-    return d()->pid;
+    if (!(err || child_err))
+        return d()->m_pid;
+    d()->m_pid = -1;
+    errno = err ? err : child_err;
+    return -1;
 }
 
-static void
+static int
 write_map(const UserMap &map, const std::string &file)
 {
-    std::fstream stm(file, std::ios_base::out);
+    FILE *stm = fopen(file.c_str(), "w");
+    if (!stm)
+        return errno;
     for (const auto &item: map) {
-        stm << item.child << " " << item.parent << " "
-            << item.length << std::endl;
-    }
-}
-
-void
-Process::post_clone_parent(int fds[2]) noexcept
-{
-    if (userns() && (!d()->uid_map.empty() || !d()->gid_map.empty())) {
-        auto proc = "/proc/" + std::to_string(d()->pid);
-        if (!d()->uid_map.empty()) {
-            write_map(d()->uid_map, proc + "/uid_map");
-        }
-        if (!d()->gid_map.empty()) {
-            write_map(d()->gid_map, proc + "/gid_map");
+        if (fprintf(stm, "%u %u %u\n", item.child,
+                    item.parent, item.length) < 0) {
+            int err = errno;
+            fclose(stm);
+            return err;
         }
     }
-
-    char buf = 0;
-    read(fds[0], &buf, 1);
-    write(fds[0], &buf, 1);
+    fclose(stm);
+    return 0;
 }
 
-void
-Process::post_clone_child(int fds[2]) noexcept
+int
+ProcessPrivate::post_clone_parent() noexcept
 {
-    char buf = 0;
-    write(fds[1], &buf, 1);
-    read(fds[1], &buf, 1);
-    close(fds[1]);
-    close(fds[0]);
+    if ((m_flags & CLONE_NEWUSER) && (!m_uids.empty() || !m_gids.empty())) {
+        auto proc = "/proc/" + std::to_string(m_pid);
+        if (!m_uids.empty()) {
+            if (int err = write_map(m_uids, proc + "/uid_map")) {
+                return err;
+            }
+        }
+        if (!m_gids.empty()) {
+            if (int err = write_map(m_gids, proc + "/gid_map")) {
+                return err;
+            }
+        }
+    }
+    return 0;
+}
+
+int
+ProcessPrivate::post_clone_child() noexcept
+{
+    if (!m_chroot.empty()) {
+        for (auto &m: m_mounts) {
+            auto &child = *(m.child.empty() ? &m.parent : &m.child);
+            if (mount(m.parent.c_str(), (m_chroot + '/' + child).c_str(),
+                      nullptr, MS_BIND, nullptr) == -1) {
+                return errno;
+            }
+        }
+        if (chdir(m_chroot.c_str()) == -1 || ::chroot(".") == -1) {
+            return errno;
+        }
+    }
+    return 0;
 }
 
 int
 Process::signal() const noexcept
 {
-    return d()->flags & CSIGNAL;
+    return d()->m_flags & CSIGNAL;
 }
 
 void
 Process::set_signal(int s) noexcept
 {
-    d()->flags = (d()->flags & (~CSIGNAL)) | (s & CSIGNAL);
+    d()->m_flags = (d()->m_flags & (~CSIGNAL)) | (s & CSIGNAL);
 }
 
 bool
 Process::userns() const noexcept
 {
-    return d()->flags & CLONE_NEWUSER;
+    return d()->m_flags & CLONE_NEWUSER;
 }
 
 void
 Process::set_userns(bool user) noexcept
 {
-    d()->flags = (d()->flags & (~CLONE_NEWUSER)) | (user ? CLONE_NEWUSER : 0);
+    d()->m_flags = (d()->m_flags & (~CLONE_NEWUSER)) | (user ? CLONE_NEWUSER : 0);
 }
 
 Process::~Process() noexcept
@@ -211,24 +255,44 @@ Process::~Process() noexcept
 UserMap&
 Process::uid_map() noexcept
 {
-    return d()->uid_map;
+    return d()->m_uids;
 }
 
 UserMap&
 Process::gid_map() noexcept
 {
-    return d()->gid_map;
+    return d()->m_gids;
 }
 
 int
 Process::wait(int *status, int options)
 {
-    int pid = d()->pid;
+    int pid = d()->m_pid;
     if (lns_unlikely(pid == -1)) {
         errno = EINVAL;
         return -1;
     }
-    return waitpid(d()->pid, status, options);
+    return waitpid(pid, status, options);
+}
+
+const std::string&
+Process::new_root() const
+{
+    return d()->m_chroot;
+}
+
+void
+Process::chroot(std::string &&root)
+{
+    d()->m_flags = ((d()->m_flags & (~CLONE_NEWNS)) |
+                    (root.empty() ? 0 : CLONE_NEWNS));
+    d()->m_chroot = root;
+}
+
+MountMap&
+Process::mount_map() noexcept
+{
+    return d()->m_mounts;
 }
 
 }

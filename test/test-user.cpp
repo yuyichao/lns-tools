@@ -22,7 +22,6 @@
 #include <assert.h>
 #include <sched.h>
 #include <unistd.h>
-#include <sys/mman.h>
 
 int
 main()
@@ -36,9 +35,9 @@ main()
     p.add_uid_map(0, getuid());
     p.add_gid_map(0, getgid());
     int pid = p.run();
-    assert(pid > 0);
+    assert_perror(pid > 0 ? errno : 0);
     int status = 0;
     p.wait(&status);
-    assert(status == 0);
+    assert_perror(status);
     return 0;
 }
