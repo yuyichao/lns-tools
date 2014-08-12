@@ -4,6 +4,7 @@ project(lns-tools)
 cmake_minimum_required(VERSION 2.8)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+set(LNS_VERSION 0.1)
 
 include(CMakeCMacros)
 include(GNUInstallDirs)
@@ -19,6 +20,10 @@ cmake_c_add_flags(CMAKE_SHARED_LINKER_FLAGS -Wl,--as-needed -Wl,--no-undefined)
 cmake_c_add_flags(CMAKE_MODULE_LINKER_FLAGS -Wl,--as-needed -Wl,--no-undefined)
 
 enable_testing()
+
+if(NOT DEFINED PKG_CONFIG_PATH)
+  set(PKG_CONFIG_PATH "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+endif()
 
 add_subdirectory(lib)
 add_subdirectory(test)
