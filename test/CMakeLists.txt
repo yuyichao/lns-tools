@@ -26,3 +26,11 @@ target_link_libraries(test-mount
 
 add_test(NAME test-mount COMMAND test-mount
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_executable(test-exec
+  test-exec.cpp)
+target_link_libraries(test-exec
+  lns-tools)
+
+add_test(NAME test-exec COMMAND test-exec
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")

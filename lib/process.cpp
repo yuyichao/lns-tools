@@ -95,12 +95,12 @@ Process::run()
         Process *const that;
         int fds[2];
     } data = {this, {0, 0}};
-    struct timeval tv;
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, data.fds) == -1) {
         return -errno;
     }
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
     if ((setsockopt(data.fds[0], SOL_SOCKET, SO_RCVTIMEO,
                     (char*)&tv, sizeof(tv)) == -1) ||
         (setsockopt(data.fds[1], SOL_SOCKET, SO_RCVTIMEO,
@@ -124,7 +124,10 @@ Process::run()
     d()->m_pid = clone([] (void *p) -> int {
             auto &data = *reinterpret_cast<CloneData*>(p);
             auto &func = data.that->d()->m_func;
-            auto &fds = data.fds;
+            // needed for CLONE_VM, address of data.fds might become invalid
+            // after the parent function returns. This can happen anywhere
+            // after the write() below.
+            int fds[2] = {data.fds[0], data.fds[1]};
             int err = data.that->d()->post_clone_child();
             // send error to parent
             write(fds[1], &err, sizeof(int));
@@ -153,11 +156,13 @@ Process::run()
     }
     int err = d()->post_clone_parent();
     int child_err = 1;
+    if (!(_flags & CLONE_FILES)) {
+        close(data.fds[1]);
+    }
     read(fds[0], &child_err, sizeof(int));
     write(fds[0], &err, sizeof(int));
     if (!(_flags & CLONE_FILES)) {
         close(data.fds[0]);
-        close(data.fds[1]);
     }
     if (!(err || child_err))
         return d()->m_pid;
@@ -166,15 +171,16 @@ Process::run()
     return -1;
 }
 
-static int
-write_map(const UserMap &map, const std::string &file)
+int
+write_user_map(const UserMap &map, const std::string &file)
 {
     FILE *stm = fopen(file.c_str(), "w");
     if (!stm)
         return errno;
     for (const auto &item: map) {
         if (fprintf(stm, "%u %u %u\n", item.child,
-                    item.parent, item.length) < 0) {
+                    item.parent, item.length) < 0 ||
+            fflush(stm) < 0) {
             int err = errno;
             fclose(stm);
             return err;
@@ -190,12 +196,12 @@ ProcessPrivate::post_clone_parent() noexcept
     if ((m_flags & CLONE_NEWUSER) && (!m_uids.empty() || !m_gids.empty())) {
         auto proc = "/proc/" + std::to_string(m_pid);
         if (!m_uids.empty()) {
-            if (int err = write_map(m_uids, proc + "/uid_map")) {
+            if (int err = write_user_map(m_uids, proc + "/uid_map")) {
                 return err;
             }
         }
         if (!m_gids.empty()) {
-            if (int err = write_map(m_gids, proc + "/gid_map")) {
+            if (int err = write_user_map(m_gids, proc + "/gid_map")) {
                 return err;
             }
         }

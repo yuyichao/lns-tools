@@ -76,7 +76,7 @@ public:
     Process(std::function<int()>&&) noexcept;
     inline Process(std::function<int()>&) noexcept;
     inline Process(Process &&) noexcept;
-    ~Process() noexcept;
+    virtual ~Process() noexcept;
 
     int extra_flags() const noexcept;
     void set_extra_flags(int) noexcept;
@@ -153,8 +153,8 @@ Process::add_gid_map<const MapRange&>(const MapRange &v)
 
 inline
 Process::Process(Process &&other) noexcept
+    : m_d(other.m_d)
 {
-    m_d = other.m_d;
     other.m_d = nullptr;
 }
 
@@ -174,6 +174,14 @@ inline
 Process::Process(std::function<int()> &func) noexcept
     : Process(std::move(std::function<int()>(func)))
 {
+}
+
+int write_user_map(const UserMap &map, const std::string &file);
+
+static inline int
+write_user_map(const MapRange &range, const std::string &file)
+{
+    return write_user_map(UserMap({range}), file);
 }
 
 }

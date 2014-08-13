@@ -18,24 +18,49 @@
  *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.              *
  ***************************************************************************/
 
-#include <lns_tools/process.h>
+#include <lns_tools/program.h>
+#include <sys/stat.h>
 #include <assert.h>
 #include <sched.h>
+#include <unistd.h>
+
+static void
+make_dir(const char *name)
+{
+    struct stat stat_buf;
+    if (lstat(name, &stat_buf) == 0) {
+        if (!S_ISDIR(stat_buf.st_mode)) {
+            fprintf(stderr,
+                    "path '%s' already exist and is not a directory.", name);
+            exit(-1);
+        }
+    } else if (mkdir(name, 0750) == -1) {
+        assert_perror(errno);
+    }
+}
 
 int
 main()
 {
-    int a = 0;
-    LNSTools::Process p([&] () {
-            a = 2;
-            return 0;
-        });
-    p.set_extra_flags(CLONE_VM);
+    LNSTools::Program p("ls");
+    p.set_args("ls", "/", "-AlF", "--color");
+    p.set_userns(true);
+    p.add_uid_map(0, getuid());
+    p.add_gid_map(0, getgid());
+    // p.add_uid_map(0, 0);
+    // p.add_gid_map(0, 0);
+
+    p.chroot(".");
+    make_dir("usr");
+    make_dir("lib");
+    make_dir("lib64");
+    p.add_mount_map("/usr");
+    p.add_mount_map("/lib");
+    p.add_mount_map("/lib64");
     int pid = p.run();
     assert_perror(pid <= 0 ? errno : 0);
     int status = 0;
     p.wait(&status);
     assert_perror(status);
-    assert(a == 2);
     return 0;
 }

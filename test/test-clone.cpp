@@ -30,6 +30,6 @@ main()
     p.set_signal(0);
     assert(p.signal() == 0);
     int pid = p.run();
-    assert_perror(pid > 0 ? errno : 0);
+    assert_perror(pid <= 0 ? errno : 0);
     return 0;
 }

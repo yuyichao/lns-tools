@@ -1,7 +1,9 @@
 set(LIB_SRCS
-  process.cpp)
+  process.cpp
+  program.cpp)
 set(LIB_HDRS
   process.h
+  program.h
   utils.h)
 
 add_library(lns-tools SHARED ${LIB_SRCS})

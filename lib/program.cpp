@@ -18,24 +18,61 @@
  *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.              *
  ***************************************************************************/
 
-#include <lns_tools/process.h>
-#include <assert.h>
-#include <sched.h>
+#include "program.h"
+
+#include <unistd.h>
+
+namespace LNSTools {
+
+class ProgramPrivate {
+    std::string m_file;
+    std::vector<std::string> m_args;
+    std::function<void()> m_pre_exec;
+    inline
+    ProgramPrivate(std::string &&file) noexcept
+        : m_file(std::move(file)), m_args(), m_pre_exec([] {})
+    {}
+    int clone_cb();
+    friend class Program;
+};
 
 int
-main()
+ProgramPrivate::clone_cb()
 {
-    int a = 0;
-    LNSTools::Process p([&] () {
-            a = 2;
-            return 0;
-        });
-    p.set_extra_flags(CLONE_VM);
-    int pid = p.run();
-    assert_perror(pid <= 0 ? errno : 0);
-    int status = 0;
-    p.wait(&status);
-    assert_perror(status);
-    assert(a == 2);
-    return 0;
+    const size_t size = m_args.size();
+    std::vector<const char*> argv(size + 1);
+    for (size_t i = 0;i < size;i++) {
+        argv[i] = m_args[i].c_str();
+    }
+    m_pre_exec();
+    execvp(m_file.c_str(), const_cast<char *const*>(argv.data()));
+    return errno;
+}
+
+Program::Program(std::string &&file)
+    : Process([=] () {
+            return d()->clone_cb();
+        }), m_d(new ProgramPrivate(std::move(file)))
+{
+}
+
+Program::~Program() noexcept
+{
+    if (m_d) {
+        delete m_d;
+    }
+}
+
+std::vector<std::string>&
+Program::args() noexcept
+{
+    return d()->m_args;
+}
+
+std::function<void()>&
+Program::pre_exec() noexcept
+{
+    return d()->m_pre_exec;
+}
+
 }

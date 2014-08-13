@@ -48,7 +48,7 @@ main()
     }
     p.add_mount_map("usr");
     int pid = p.run();
-    assert_perror(pid > 0 ? errno : 0);
+    assert_perror(pid <= 0 ? errno : 0);
     int status = 0;
     p.wait(&status);
     assert_perror(status);
