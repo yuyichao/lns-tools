@@ -38,7 +38,7 @@ add_test(NAME test-exec COMMAND test-exec
 add_executable(test-nested
   test-nested.cpp)
 target_link_libraries(test-nested
-  lns-tools)
+  lns-tools cap)
 
 add_test(NAME test-nested COMMAND test-nested
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")

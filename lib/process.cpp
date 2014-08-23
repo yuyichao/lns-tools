@@ -171,7 +171,7 @@ Process::run()
     return -1;
 }
 
-int
+LNS_EXPORT int
 write_user_map(const UserMap &map, const std::string &file)
 {
     FILE *stm = fopen(file.c_str(), "w");
