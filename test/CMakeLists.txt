@@ -42,3 +42,11 @@ target_link_libraries(test-nested
 
 add_test(NAME test-nested COMMAND test-nested
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_executable(test-override-mount
+  test-override-mount.cpp)
+target_link_libraries(test-override-mount
+  lns-tools)
+
+add_test(NAME test-override-mount COMMAND test-override-mount
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
