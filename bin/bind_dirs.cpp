@@ -86,7 +86,7 @@ main(int argc, char **argv)
     }
 
     LNSTools::Program p(file);
-    if (geteuid() == 0) {
+    if (geteuid() != 0) {
         p.set_userns(true);
         auto uid = getuid();
         auto gid = getgid();
