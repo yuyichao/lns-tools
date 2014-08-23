@@ -24,6 +24,21 @@
 #include <sched.h>
 #include <unistd.h>
 
+static void
+make_dir(const char *name)
+{
+    struct stat stat_buf;
+    if (lstat(name, &stat_buf) == 0) {
+        if (!S_ISDIR(stat_buf.st_mode)) {
+            fprintf(stderr,
+                    "path '%s' already exist and is not a directory.", name);
+            exit(-1);
+        }
+    } else if (mkdir(name, 0750) == -1) {
+        assert_perror(errno);
+    }
+}
+
 int
 main()
 {
@@ -36,17 +51,11 @@ main()
     p.add_uid_map(0, getuid());
     p.add_gid_map(0, getgid());
 
-    p.chroot(".");
-    struct stat stat_buf;
-    if (lstat("usr", &stat_buf) == 0) {
-        if (!S_ISDIR(stat_buf.st_mode)) {
-            fprintf(stderr, "path 'usr' already exist and is not a directory.");
-            return -1;
-        }
-    } else if (mkdir("usr", 0750) == -1) {
-        assert_perror(errno);
-    }
+    p.chroot("/");
+    make_dir("usr");
+    make_dir("tmp2");
     p.add_mount_map("usr");
+    p.add_mount_map("tmp2", "/tmp/tmp2");
     int pid = p.run();
     assert_perror(pid <= 0 ? errno : 0);
     int status = 0;

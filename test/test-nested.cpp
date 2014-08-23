@@ -43,15 +43,15 @@ make_dir(const char *name)
 int
 main2(int top_uid, int top_gid)
 {
-    int overflow_uid = getuid();
-    int overflow_gid = getgid();
+    // int overflow_uid = getuid();
+    // int overflow_gid = getgid();
     int status = LNSTools::write_user_map(LNSTools::MapRange(0, top_uid),
                                           "/proc/self/uid_map");
     assert_perror(status ? errno : 0);
     status = LNSTools::write_user_map(LNSTools::MapRange(0, top_gid),
                                       "/proc/self/gid_map");
     assert_perror(status ? errno : 0);
-    assert_perror(seteuid(1000) ? errno : 0);
+    // assert_perror(seteuid(1000) ? errno : 0);
 
     printf("uid: %ld\n", (long)getuid());
     printf("gid: %ld\n", (long)getgid());
@@ -66,10 +66,10 @@ main2(int top_uid, int top_gid)
     p.set_args("ls", "-AlF", "--color", "/");
 
     p.set_userns(true);
-    // p.add_uid_map(1000, 0);
-    // p.add_gid_map(1000, 0);
-    p.add_uid_map(2048, 1048);
-    p.add_gid_map(2048, 1048);
+    p.add_uid_map(1000, 0);
+    p.add_gid_map(1000, 0);
+    // p.add_uid_map(2048, 1048);
+    // p.add_gid_map(2048, 1048);
     // p.add_uid_map(0, overflow_uid);
     // p.add_gid_map(0, overflow_gid);
 
