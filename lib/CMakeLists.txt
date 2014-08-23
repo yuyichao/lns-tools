@@ -13,6 +13,6 @@ set_target_properties(lns-tools
 configure_file(lns-tools.pc.in lns-tools.pc @ONLY)
 
 install(TARGETS lns-tools DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-install(FILES ${LIB_HDRS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(FILES ${LIB_HDRS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/lns_tools")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/lns-tools.pc"
   DESTINATION "${PKG_CONFIG_PATH}")
