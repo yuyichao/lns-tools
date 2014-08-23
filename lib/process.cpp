@@ -42,11 +42,12 @@ class ProcessPrivate {
     UserMap m_uids;
     UserMap m_gids;
     std::string m_chroot;
+    std::string m_chdir;
     MountMap m_mounts;
     inline
     ProcessPrivate(std::function<int()> &&f) noexcept :
-        m_flags(SIGCHLD), m_extra_flags(0), m_pid(-1), m_func(f),
-        m_uids(), m_gids(), m_chroot(), m_mounts()
+        m_flags(SIGCHLD), m_extra_flags(0), m_pid(-1), m_func(std::move(f)),
+        m_uids(), m_gids(), m_chroot(), m_chdir(), m_mounts()
     {
     }
     int post_clone_child() noexcept;
@@ -224,6 +225,11 @@ ProcessPrivate::post_clone_child() noexcept
             return errno;
         }
     }
+    if (!m_chdir.empty()) {
+        if (chdir(m_chdir.c_str()) == -1) {
+            return errno;
+        }
+    }
     return 0;
 }
 
@@ -287,12 +293,24 @@ Process::new_root() const
     return d()->m_chroot;
 }
 
+const std::string&
+Process::new_curdir() const
+{
+    return d()->m_chdir;
+}
+
 void
 Process::chroot(std::string &&root)
 {
     d()->m_flags = ((d()->m_flags & (~CLONE_NEWNS)) |
                     (root.empty() ? 0 : CLONE_NEWNS));
-    d()->m_chroot = root;
+    d()->m_chroot = std::move(root);
+}
+
+void
+Process::chdir(std::string &&dir)
+{
+    d()->m_chdir = std::move(dir);
 }
 
 MountMap&

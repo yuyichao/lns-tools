@@ -149,6 +149,11 @@ public:
     const std::string& new_root() const;
     inline void chroot(std::string&);
     void chroot(std::string&&);
+
+    const std::string& new_curdir() const;
+    inline void chdir(std::string&);
+    void chdir(std::string&&);
+
     MountMap &mount_map() noexcept;
     template<typename... T> inline void add_mount_map(T&&... v);
 };
@@ -157,6 +162,12 @@ inline void
 Process::chroot(std::string &root)
 {
     chroot(std::move(std::string(root)));
+}
+
+inline void
+Process::chdir(std::string &root)
+{
+    chdir(std::move(std::string(root)));
 }
 
 template<typename... T>
