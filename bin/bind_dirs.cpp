@@ -47,11 +47,18 @@ make_dir(const char *name)
     }
 }
 
+static inline const char*
+get_shell()
+{
+    static const char *shell = getenv("SHELL");
+    return shell ? shell : "/bin/sh";
+}
+
 int
 main(int argc, char **argv)
 {
     LNSTools::MountMap mount_map;
-    char *file = nullptr;
+    const char *file = nullptr;
     bool mkdir_opt = false;
     char *new_curdir = nullptr;
 
@@ -81,12 +88,22 @@ main(int argc, char **argv)
             break;
         }
     }
-    char **args = (i >= argc) ? &file : (argv + i);
-    if (lns_unlikely(!args || !args[0])) {
-        exit_error("bind_dirs: no command to execute.\n");
-    }
-    if (!file) {
-        file = args[0];
+    const char **args = nullptr;
+    int args_n = 0;
+    if (i < argc) {
+        args = const_cast<const char**>(argv + i);
+        args_n = argc - i;
+        if (!file) {
+            file = args[0];
+        }
+    } else {
+        args_n = 1;
+        if (file) {
+            args = &file;
+        } else {
+            file = get_shell();
+            args = &file;
+        }
     }
     if (new_curdir) {
         new_curdir = realpath(new_curdir, nullptr);
@@ -102,8 +119,8 @@ main(int argc, char **argv)
         p.add_uid_map(uid, uid);
         p.add_gid_map(gid, gid);
     }
-    for (int j = i;j < argc;j++) {
-        p.args().push_back(argv[j]);
+    for (int j = 0;j < args_n;j++) {
+        p.args().push_back(args[j]);
     }
 
     p.chroot("/");
