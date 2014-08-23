@@ -78,7 +78,7 @@ main(int argc, char **argv)
         }
     }
     char **args = (i >= argc) ? &file : (argv + i);
-    if (lns_unlikely(!args)) {
+    if (lns_unlikely(!args || !args[0])) {
         exit_error("bind_dirs: no command to execute.");
     }
     if (!file) {
