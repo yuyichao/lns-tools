@@ -39,8 +39,8 @@ make_dir(const char *name)
     struct stat stat_buf;
     if (lstat(name, &stat_buf) == 0) {
         if (!S_ISDIR(stat_buf.st_mode)) {
-            exit_error("bind_dirs: "
-                       "path '%s' already exist and is not a directory.", name);
+            exit_error("bind_dirs: path '%s' already exist and is "
+                       "not a directory.\n", name);
         }
     } else if (mkdir(name, 0750) == -1) {
         assert_perror(errno);
@@ -58,19 +58,19 @@ main(int argc, char **argv)
     for (;i < argc;i++) {
         if (strcmp(argv[i], "-m") == 0) {
             if (i + 2 >= argc) {
-                exit_error("bind_dirs: not enough arguments for -m.");
+                exit_error("bind_dirs: not enough arguments for -m.\n");
             }
             mount_map.push_back(argv[i + 1], argv[i + 2]);
             i += 2;
         } else if (strcmp(argv[i], "--arg0") == 0) {
             if (i + 1 >= argc) {
-                exit_error("bind_dirs: not enough arguments for --arg0.");
+                exit_error("bind_dirs: not enough arguments for --arg0.\n");
             }
             i++;
             file = argv[i];
         } else if (strcmp(argv[i], "-p") == 0) {
             if (i + 1 >= argc) {
-                exit_error("bind_dirs: not enough arguments for --arg0.");
+                exit_error("bind_dirs: not enough arguments for --arg0.\n");
             }
             mkdir_opt = true;
         } else {
@@ -79,7 +79,7 @@ main(int argc, char **argv)
     }
     char **args = (i >= argc) ? &file : (argv + i);
     if (lns_unlikely(!args || !args[0])) {
-        exit_error("bind_dirs: no command to execute.");
+        exit_error("bind_dirs: no command to execute.\n");
     }
     if (!file) {
         file = args[0];
