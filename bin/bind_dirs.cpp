@@ -53,6 +53,7 @@ main(int argc, char **argv)
     LNSTools::MountMap mount_map;
     char *file = nullptr;
     bool mkdir_opt = false;
+    char *new_curdir = nullptr;
 
     int i = 1;
     for (;i < argc;i++) {
@@ -69,10 +70,13 @@ main(int argc, char **argv)
             i++;
             file = argv[i];
         } else if (strcmp(argv[i], "-p") == 0) {
-            if (i + 1 >= argc) {
-                exit_error("bind_dirs: not enough arguments for --arg0.\n");
-            }
             mkdir_opt = true;
+        } else if (strcmp(argv[i], "-C") == 0) {
+            if (i + 1 >= argc) {
+                exit_error("bind_dirs: not enough arguments for -C.\n");
+            }
+            i++;
+            new_curdir = argv[i];
         } else {
             break;
         }
@@ -83,6 +87,11 @@ main(int argc, char **argv)
     }
     if (!file) {
         file = args[0];
+    }
+    if (new_curdir) {
+        new_curdir = realpath(new_curdir, nullptr);
+    } else {
+        new_curdir = get_current_dir_name();
     }
 
     LNSTools::Program p(file);
@@ -98,6 +107,8 @@ main(int argc, char **argv)
     }
 
     p.chroot("/");
+    p.chdir(new_curdir);
+    free(new_curdir);
     if (mkdir_opt) {
         for (auto &mount: mount_map) {
             make_dir(mount.parent.c_str());
