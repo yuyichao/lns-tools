@@ -49,7 +49,32 @@ BindMount::BindMount(Tp &&_parent, Tc &&_child)
 {
 }
 
-typedef std::vector<BindMount> MountMap;
+class MountMap : public std::vector<BindMount> {
+public:
+    using std::vector<BindMount>::vector;
+    template<typename... T> inline void push_back(T&&... v);
+};
+
+template<typename... T>
+inline void
+MountMap::push_back(T&&... v)
+{
+    std::vector<BindMount>::push_back(BindMount(std::forward<T>(v)...));
+}
+
+template<>
+inline void
+MountMap::push_back<const BindMount&>(const BindMount &v)
+{
+    std::vector<BindMount>::push_back(v);
+}
+
+template<>
+inline void
+MountMap::push_back<BindMount>(BindMount &&v)
+{
+    std::vector<BindMount>::push_back(std::move(v));
+}
 
 struct MapRange {
     unsigned child;
@@ -62,7 +87,32 @@ struct MapRange {
     {}
 };
 
-typedef std::vector<MapRange> UserMap;
+class UserMap : public std::vector<MapRange> {
+public:
+    using std::vector<MapRange>::vector;
+    template<typename... T> inline void push_back(T&&... v);
+};
+
+template<typename... T>
+inline void
+UserMap::push_back(T&&... v)
+{
+    std::vector<MapRange>::push_back(MapRange(std::forward<T>(v)...));
+}
+
+template<>
+inline void
+UserMap::push_back<const MapRange&>(const MapRange &v)
+{
+    std::vector<MapRange>::push_back(v);
+}
+
+template<>
+inline void
+UserMap::push_back<MapRange>(MapRange&& v)
+{
+    std::vector<MapRange>::push_back(std::move(v));
+}
 
 class ProcessPrivate;
 
@@ -113,42 +163,21 @@ template<typename... T>
 inline void
 Process::add_mount_map(T&&... v)
 {
-    mount_map().push_back(BindMount(std::forward<T>(v)...));
-}
-
-template<>
-inline void
-Process::add_mount_map<const BindMount&>(const BindMount &v)
-{
-    mount_map().push_back(v);
+    mount_map().push_back(std::forward<T>(v)...);
 }
 
 template<typename... T>
 inline void
 Process::add_uid_map(T&&... v)
 {
-    uid_map().push_back(MapRange(std::forward<T>(v)...));
-}
-
-template<>
-inline void
-Process::add_uid_map<const MapRange&>(const MapRange &v)
-{
-    uid_map().push_back(v);
+    uid_map().push_back(std::forward<T>(v)...);
 }
 
 template<typename... T>
 inline void
 Process::add_gid_map(T&&... v)
 {
-    gid_map().push_back(MapRange(std::forward<T>(v)...));
-}
-
-template<>
-inline void
-Process::add_gid_map<const MapRange&>(const MapRange &v)
-{
-    gid_map().push_back(v);
+    gid_map().push_back(std::forward<T>(v)...);
 }
 
 inline
